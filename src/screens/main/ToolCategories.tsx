@@ -189,7 +189,7 @@ const ToolCategories = () => {
 
         {/* Tools List */}
         <FlatList
-          data={getToolsListRes}
+          data={Array.isArray(getToolsListRes) ? getToolsListRes : getToolsListRes?.data || []}
           renderItem={renderToolItem}
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}

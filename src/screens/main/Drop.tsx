@@ -8,6 +8,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { getTeamsRequest, getToolsListRequest, getTeamMembersByIdRequest, takeToolRequest, getMembersOverallRequest, getInventoryLocationsRequest, dropToolRequest, getToolsAssignedRequest } from '../../redux/reducer/MainReducer';
 import { navigate } from '../../utils/helper/RootNavigation';
 import Loader from '../../utils/helper/Loader';
+import ToastAlert from '../../utils/helper/Toast';
 
 const DropdownInput = ({ label, value, onPress }: { label: string; value: string; onPress?: () => void }) => (
   <View style={styles.inputContainer}>
@@ -38,6 +39,8 @@ const Drop = () => {
   const [selectedSource, setSelectedSource] = useState<any>(null);
   const [selectedTeamMember, setSelectedTeamMember] = useState<any>(null);
   const [memberPage, setMemberPage] = useState(1);
+  const [toolPage, setToolPage] = useState(1);
+  const [toolsListPage, setToolsListPage] = useState(1);
   const [sourceTab, setSourceTab] = useState<'Location' | 'Individuals'>('Location');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -54,17 +57,17 @@ const Drop = () => {
     setToolQuantities(prev => {
       const newQtys = { ...prev };
       Object.keys(newQtys).forEach(key => {
-        if (!tempSelectedTools.some(t => t.tool_id.toString() === key.toString())) {
+        if (!tempSelectedTools.some(t => t?.id?.toString() === key?.toString())) {
           delete newQtys[key];
         }
       });
       tempSelectedTools.forEach(tool => {
-        if (!newQtys[tool.tool_id]) newQtys[tool.tool_id] = 1;
+        if (!newQtys[tool?.id]) newQtys[tool?.id] = 1;
       });
 
       const finalizedTools = tempSelectedTools.map(tool => ({
         ...tool,
-        quantity: newQtys[tool.tool_id]
+        quantity: newQtys[tool?.id]
       }));
       setSelectedTools(finalizedTools);
 
@@ -73,34 +76,34 @@ const Drop = () => {
     setModalVisible(false);
   };
 
-  const increaseToolQuantity = (tool_id: string) => {
+  const increaseToolQuantity = (id: string) => {
     setToolQuantities(prev => {
-      const newQty = (prev[tool_id] || 1) + 1;
-      setSelectedTools(currentList => currentList.map(tool => tool.tool_id === tool_id ? { ...tool, quantity: newQty } : tool));
-      return { ...prev, [tool_id]: newQty };
+      const newQty = (prev[id] || 1) + 1;
+      setSelectedTools(currentList => currentList.map(tool => tool.id === id ? { ...tool, quantity: newQty } : tool));
+      return { ...prev, [id]: newQty };
     });
   };
 
-  const decreaseToolQuantity = (tool_id: string) => {
+  const decreaseToolQuantity = (id: string) => {
     setToolQuantities(prev => {
-      const currentQty = prev[tool_id] || 1;
+      const currentQty = prev[id] || 1;
       if (currentQty <= 1) {
-        setSelectedTools(currentList => currentList.filter(tool => tool.tool_id.toString() !== tool_id.toString()));
+        setSelectedTools(currentList => currentList.filter(tool => tool.id.toString() !== id.toString()));
         const newQtys = { ...prev };
-        delete newQtys[tool_id];
+        delete newQtys[id];
         return newQtys;
       } else {
         const newQty = currentQty - 1;
-        setSelectedTools(currentList => currentList.map(tool => tool.tool_id === tool_id ? { ...tool, quantity: newQty } : tool));
-        return { ...prev, [tool_id]: newQty };
+        setSelectedTools(currentList => currentList.map(tool => tool.id === id ? { ...tool, quantity: newQty } : tool));
+        return { ...prev, [id]: newQty };
       }
     });
   };
 
   const toggleToolSelection = (toolObject: any) => {
     setTempSelectedTools(prev => {
-      if (prev.some(t => t.tool_id === toolObject.tool_id)) {
-        return prev.filter(t => t.tool_id !== toolObject.tool_id);
+      if (prev.some(t => t.id === toolObject.id)) {
+        return prev.filter(t => t.id !== toolObject.id);
       } else {
         return [...prev, toolObject];
       }
@@ -108,7 +111,16 @@ const Drop = () => {
   };
 
   const handleTakeTool = () => {
-    if (!selectedSource?.id || !selectedCategory?.id || selectedTools.length === 0) {
+    if (!selectedCategory?.id) {
+      ToastAlert('Please select a category');
+      return;
+    }
+    if (!selectedSource?.id) {
+      ToastAlert('Please select a return source');
+      return;
+    }
+    if (selectedTools.length === 0) {
+      ToastAlert('Please select at least one tool');
       return;
     }
 
@@ -123,7 +135,7 @@ const Drop = () => {
       category_id: selectedCategory.id,
       notes: "",
       tools: selectedTools.map(tool => ({
-        tool_id: tool.tool_id || '',
+        tool_id: tool.id || '',
         quantity: tool.quantity
       }))
     };
@@ -132,7 +144,7 @@ const Drop = () => {
   };
 
   const renderToolCard = (toolObject: any) => {
-    const isSelected = tempSelectedTools.some(t => t.tool_id === toolObject.tool_id);
+    const isSelected = tempSelectedTools.some(t => t.id === toolObject.id);
     return (
       <TouchableOpacity
         style={[styles.toolCard, isSelected && styles.toolCardSelected]}
@@ -143,7 +155,7 @@ const Drop = () => {
           <Image source={ICONS.matchesActive} style={styles.toolIcon} />
         </View>
         <View style={styles.toolInfo}>
-          <Text style={styles.toolName}>{toolObject.tool_name}</Text>
+          <Text style={styles.toolName}>{toolObject?.name}</Text>
           <Text style={styles.toolSerial}>{`S/N: ${toolObject.serial_number || ''}`}</Text>
         </View>
         <View style={styles.toolCheckWrapper}>
@@ -157,8 +169,8 @@ const Drop = () => {
 
   useEffect(() => {
     // dispatch(getTeamsRequest({}));
-    dispatch(getToolsListRequest({}));
-    dispatch(getToolsAssignedRequest({}));
+    dispatch(getToolsListRequest({ page_no: 1, per_page: 10, taken_by_me: true }));
+    dispatch(getToolsAssignedRequest({ page_no: 1, per_page: 20 }));
     dispatch(getMembersOverallRequest({ page_no: 1, per_page: 20 }));
     dispatch(getInventoryLocationsRequest({ per_page: 20 }));
   }, []);
@@ -176,6 +188,16 @@ const Drop = () => {
   }, [status]);
 
   useEffect(() => {
+    if (selectedCategory?.id) {
+      dispatch(getToolsListRequest({ page_no: 1, per_page: 10, category_id: selectedCategory.id, taken_by_me: true }));
+      setToolsListPage(1);
+      setSelectedTools([]);
+      setTempSelectedTools([]);
+      setToolQuantities({ tool1: 1 });
+    }
+  }, [selectedCategory?.id, dispatch]);
+
+  useEffect(() => {
     if (modalType === 'Team Member' || (modalType === 'Source' && sourceTab === 'Individuals')) {
       const delayDebounceFn = setTimeout(() => {
         dispatch(getMembersOverallRequest({ page_no: 1, per_page: 20, search: searchQuery }));
@@ -183,7 +205,16 @@ const Drop = () => {
       }, 500);
       return () => clearTimeout(delayDebounceFn);
     }
-  }, [searchQuery, modalType, sourceTab, dispatch]);
+    if (modalType === 'Tool') {
+      const delayDebounceFn = setTimeout(() => {
+        dispatch(getToolsAssignedRequest({ page_no: 1, per_page: 20, search: searchQuery }));
+        dispatch(getToolsListRequest({ page_no: 1, per_page: 10, search: searchQuery, category_id: selectedCategory?.id, taken_by_me: true }));
+        setToolPage(1);
+        setToolsListPage(1);
+      }, 500);
+      return () => clearTimeout(delayDebounceFn);
+    }
+  }, [searchQuery, modalType, sourceTab, selectedCategory?.id, dispatch]);
 
   const handleModalEndReached = () => {
     if ((modalType === 'Team Member' || (modalType === 'Source' && sourceTab === 'Individuals')) && !isMainLoading && !pagiLoading) {
@@ -193,20 +224,35 @@ const Drop = () => {
         setMemberPage(nextPage);
         dispatch(getMembersOverallRequest({ page_no: nextPage, per_page: 20 }));
       }
+    } else if (modalType === 'Tool' && !isMainLoading && !pagiLoading) {
+      const lastPage = toolsAssignedRes?.last_page || 1;
+      if (toolPage < lastPage) {
+        const nextPage = toolPage + 1;
+        setToolPage(nextPage);
+        dispatch(getToolsAssignedRequest({ page_no: nextPage, per_page: 20, search: searchQuery }));
+      }
+
+      const listLastPage = getToolsListRes?.last_page || 1;
+      if (toolsListPage < listLastPage) {
+        const nextListPage = toolsListPage + 1;
+        setToolsListPage(nextListPage);
+        dispatch(getToolsListRequest({ page_no: nextListPage, per_page: 10, search: searchQuery, category_id: selectedCategory?.id, taken_by_me: true }));
+      }
     }
   };
 
   const getModalData = () => {
     let data: any = [];
     switch (modalType) {
-      case 'Tool': data = toolsAssignedRes?.data || []; break;
+      // case 'Tool': data = Array.isArray(toolsAssignedRes) ? toolsAssignedRes : toolsAssignedRes?.data || []; break;
+      case 'Tool': data = Array.isArray(getToolsListRes) ? getToolsListRes : getToolsListRes?.data || []; break;
       case 'Category': data = getInventoryCategoriesRes || []; break;
       case 'Source': data = sourceTab === 'Location' ? (inventoryLocationsRes || []) : (Array.isArray(membersOverallRes) ? membersOverallRes : membersOverallRes?.data || []); break;
       case 'Team Member': data = Array.isArray(membersOverallRes) ? membersOverallRes : membersOverallRes?.data || []; break;
       default: data = []; break;
     }
 
-    if (searchQuery && (modalType === 'Tool' || modalType === 'Category' || (modalType === 'Source' && sourceTab === 'Location'))) {
+    if (searchQuery && (modalType === 'Category' || (modalType === 'Source' && sourceTab === 'Location'))) {
       return data.filter((item: any) => {
         const name = item?.tool_name || item?.first_name || item?.title || item?.serial_number || '';
         return name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -244,7 +290,7 @@ const Drop = () => {
     }
   };
 
-  console.log("2345", selectedSource)
+  // console.log("2345", selectedSource)
 
   return (
     <SafeAreaView style={styles.container}>
@@ -278,20 +324,20 @@ const Drop = () => {
         <View style={{ marginTop: mvs(16) }}>
           {selectedTools.map(tool => {
             return (
-              <View key={tool.tool_id} style={[styles.toolCard, { marginBottom: mvs(12) }]}>
+              <View key={tool?.id} style={[styles.toolCard, { marginBottom: mvs(12) }]}>
                 <View style={[styles.toolIconWrapper, { backgroundColor: '#DBEAFE' }]}>
                   <Image source={ICONS.matchesActive} style={styles.toolIcon} />
                 </View>
                 <View style={styles.toolInfo}>
-                  <Text style={styles.toolName}>{tool?.tool_name}</Text>
+                  <Text style={styles.toolName}>{tool?.name}</Text>
                   <Text style={styles.toolSerial}>{`S/N: ${tool?.serial_number || ''}`}</Text>
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.backgroundTertiary, borderRadius: ms(8) }}>
-                  <TouchableOpacity onPress={() => decreaseToolQuantity(tool.tool_id)} style={styles.qtyBtn} activeOpacity={0.7}>
+                  <TouchableOpacity onPress={() => decreaseToolQuantity(tool?.id)} style={styles.qtyBtn} activeOpacity={0.7}>
                     <Image source={ICONS.minus} style={styles.qtyIcon} />
                   </TouchableOpacity>
-                  <Text style={styles.qtyValue}>{toolQuantities[tool.tool_id] || 1}</Text>
-                  <TouchableOpacity onPress={() => increaseToolQuantity(tool.tool_id)} style={styles.qtyBtn} activeOpacity={0.7}>
+                  <Text style={styles.qtyValue}>{toolQuantities[tool?.id] || 1}</Text>
+                  <TouchableOpacity onPress={() => increaseToolQuantity(tool?.id)} style={styles.qtyBtn} activeOpacity={0.7}>
                     <Image source={ICONS.plus} style={styles.qtyIcon} />
                   </TouchableOpacity>
                 </View>
@@ -361,10 +407,10 @@ const Drop = () => {
               </View>
             }
             renderItem={renderModalItem}
-            onEndReached={modalType === 'Team Member' || (modalType === 'Source' && sourceTab === 'Individuals') ? handleModalEndReached : undefined}
+            onEndReached={modalType === 'Team Member' || (modalType === 'Source' && sourceTab === 'Individuals') || modalType === 'Tool' ? handleModalEndReached : undefined}
             onEndReachedThreshold={0.5}
             ListFooterComponent={
-              (modalType === 'Team Member' || (modalType === 'Source' && sourceTab === 'Individuals')) && pagiLoading ? (
+              (modalType === 'Team Member' || (modalType === 'Source' && sourceTab === 'Individuals') || modalType === 'Tool') && pagiLoading ? (
                 <ActivityIndicator size="small" color={COLORS.primary} style={{ marginVertical: mvs(20) }} />
               ) : null
             }

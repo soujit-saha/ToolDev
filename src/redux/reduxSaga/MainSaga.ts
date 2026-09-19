@@ -447,7 +447,8 @@ export function* getToolsListSaga(
     );
     yield put(getToolsListSuccess({
       data: response?.data?.data?.data || response?.data?.data || response?.data || [],
-      page: params.page || 1,
+      page: params.page_no || params.page || 1,
+      last_page: response?.data?.data?.last_page || 1,
     }));
   } catch (error: any) {
     yield put(getToolsListFailure(error));

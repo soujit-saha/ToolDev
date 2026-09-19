@@ -350,23 +350,35 @@ const MainSlice = createSlice({
     },
 
     getToolsListRequest(state, action: PayloadAction<any>) {
-      state.isMainLoading = true;
+      if (action.payload?.page_no > 1 || action.payload?.page > 1) {
+        state.pagiLoading = true;
+      } else {
+        state.isMainLoading = true;
+      }
       state.status = action.type;
     },
     getToolsListSuccess(state, action: PayloadAction<any>) {
       state.isMainLoading = false;
+      state.pagiLoading = false;
       if (action.payload?.page === 1) {
-        state.getToolsListRes = action.payload.data;
+        state.getToolsListRes = {
+          data: action.payload.data,
+          last_page: action.payload.last_page,
+        };
       } else {
-        state.getToolsListRes = [
-          ...(state.getToolsListRes || []),
-          ...(action.payload.data || []),
-        ];
+        state.getToolsListRes = {
+          ...state.getToolsListRes,
+          data: [
+            ...(state.getToolsListRes?.data || []),
+            ...(action.payload.data || []),
+          ],
+        };
       }
       state.status = action.type;
     },
     getToolsListFailure(state, action: PayloadAction<any>) {
       state.isMainLoading = false;
+      state.pagiLoading = false;
       state.error = action.payload?.error || 'getToolsList failed';
       state.status = action.type;
     },

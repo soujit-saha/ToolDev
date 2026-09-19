@@ -8,6 +8,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { getTeamsRequest, getToolsListRequest, getTeamMembersByIdRequest, takeToolRequest, getMembersOverallRequest, getInventoryLocationsRequest } from '../../redux/reducer/MainReducer';
 import { navigate } from '../../utils/helper/RootNavigation';
 import Loader from '../../utils/helper/Loader';
+import ToastAlert from '../../utils/helper/Toast';
 
 const DropdownInput = ({ label, value, onPress }: { label: string; value: string; onPress?: () => void }) => (
   <View style={styles.inputContainer}>
@@ -38,6 +39,7 @@ const Take = () => {
   const [selectedSource, setSelectedSource] = useState<any>(null);
   const [selectedTeamMember, setSelectedTeamMember] = useState<any>(null);
   const [memberPage, setMemberPage] = useState(1);
+  const [toolPage, setToolPage] = useState(1);
   const [sourceTab, setSourceTab] = useState<'Location' | 'Individuals'>('Location');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -108,7 +110,16 @@ const Take = () => {
   };
 
   const handleTakeTool = () => {
-    if (!selectedSource?.id || !selectedCategory?.id || selectedTools.length === 0) {
+    if (!selectedCategory?.id) {
+      ToastAlert('Please select a category');
+      return;
+    }
+    if (!selectedSource?.id) {
+      ToastAlert('Please select a source');
+      return;
+    }
+    if (selectedTools.length === 0) {
+      ToastAlert('Please select at least one tool');
       return;
     }
 
@@ -157,7 +168,7 @@ const Take = () => {
 
   useEffect(() => {
     // dispatch(getTeamsRequest({}));
-    dispatch(getToolsListRequest({}));
+    dispatch(getToolsListRequest({ page_no: 1, per_page: 10 }));
     dispatch(getMembersOverallRequest({ page_no: 1, per_page: 20 }));
     dispatch(getInventoryLocationsRequest({ per_page: 20 }));
   }, []);
@@ -175,6 +186,16 @@ const Take = () => {
   }, [status]);
 
   useEffect(() => {
+    if (selectedCategory?.id) {
+      dispatch(getToolsListRequest({ page_no: 1, per_page: 10, category_id: selectedCategory.id }));
+      setToolPage(1);
+      setSelectedTools([]);
+      setTempSelectedTools([]);
+      setToolQuantities({ tool1: 1 });
+    }
+  }, [selectedCategory?.id, dispatch]);
+
+  useEffect(() => {
     if (modalType === 'Team Member' || (modalType === 'Source' && sourceTab === 'Individuals')) {
       const delayDebounceFn = setTimeout(() => {
         dispatch(getMembersOverallRequest({ page_no: 1, per_page: 20, search: searchQuery }));
@@ -182,7 +203,14 @@ const Take = () => {
       }, 500);
       return () => clearTimeout(delayDebounceFn);
     }
-  }, [searchQuery, modalType, sourceTab, dispatch]);
+    if (modalType === 'Tool') {
+      const delayDebounceFn = setTimeout(() => {
+        dispatch(getToolsListRequest({ page_no: 1, per_page: 10, search: searchQuery, category_id: selectedCategory?.id }));
+        setToolPage(1);
+      }, 500);
+      return () => clearTimeout(delayDebounceFn);
+    }
+  }, [searchQuery, modalType, sourceTab, selectedCategory?.id, dispatch]);
 
   const handleModalEndReached = () => {
     if ((modalType === 'Team Member' || (modalType === 'Source' && sourceTab === 'Individuals')) && !isMainLoading && !pagiLoading) {
@@ -192,20 +220,27 @@ const Take = () => {
         setMemberPage(nextPage);
         dispatch(getMembersOverallRequest({ page_no: nextPage, per_page: 20 }));
       }
+    } else if (modalType === 'Tool' && !isMainLoading && !pagiLoading) {
+      const lastPage = getToolsListRes?.last_page || 1;
+      if (toolPage < lastPage) {
+        const nextPage = toolPage + 1;
+        setToolPage(nextPage);
+        dispatch(getToolsListRequest({ page_no: nextPage, per_page: 10, search: searchQuery, category_id: selectedCategory?.id }));
+      }
     }
   };
 
   const getModalData = () => {
     let data: any = [];
     switch (modalType) {
-      case 'Tool': data = getToolsListRes || []; break;
+      case 'Tool': data = Array.isArray(getToolsListRes) ? getToolsListRes : getToolsListRes?.data || []; break;
       case 'Category': data = getInventoryCategoriesRes || []; break;
       case 'Source': data = sourceTab === 'Location' ? (inventoryLocationsRes || []) : (Array.isArray(membersOverallRes) ? membersOverallRes : membersOverallRes?.data || []); break;
       case 'Team Member': data = Array.isArray(membersOverallRes) ? membersOverallRes : membersOverallRes?.data || []; break;
       default: data = []; break;
     }
 
-    if (searchQuery && (modalType === 'Tool' || modalType === 'Category' || (modalType === 'Source' && sourceTab === 'Location'))) {
+    if (searchQuery && (modalType === 'Category' || (modalType === 'Source' && sourceTab === 'Location'))) {
       return data.filter((item: any) => {
         const name = item?.name || item?.first_name || item?.title || item?.serial_number || '';
         return name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -355,10 +390,10 @@ const Take = () => {
               </View>
             }
             renderItem={renderModalItem}
-            onEndReached={modalType === 'Team Member' || (modalType === 'Source' && sourceTab === 'Individuals') ? handleModalEndReached : undefined}
+            onEndReached={modalType === 'Team Member' || (modalType === 'Source' && sourceTab === 'Individuals') || modalType === 'Tool' ? handleModalEndReached : undefined}
             onEndReachedThreshold={0.5}
             ListFooterComponent={
-              (modalType === 'Team Member' || (modalType === 'Source' && sourceTab === 'Individuals')) && pagiLoading ? (
+              (modalType === 'Team Member' || (modalType === 'Source' && sourceTab === 'Individuals') || modalType === 'Tool') && pagiLoading ? (
                 <ActivityIndicator size="small" color={COLORS.primary} style={{ marginVertical: mvs(20) }} />
               ) : null
             }
