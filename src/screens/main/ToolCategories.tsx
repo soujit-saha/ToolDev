@@ -19,57 +19,14 @@ import { getToolsListRequest } from '../../redux/reducer/MainReducer';
 import { useFocusEffect } from '@react-navigation/native';
 import Loader from '../../utils/helper/Loader';
 
-const CATEGORIES = ['All', 'Hand Tools', 'PPE', 'Safety', 'Power Tools'];
 
-const TOOLS_DATA = [
-  {
-    id: '1',
-    name: 'Adjustable Wrench',
-    available: '12',
-    icon: ICONS.wrench,
-    bgColor: '#E6F0FF',
-    tintColor: '#0056BE',
-  },
-  {
-    id: '2',
-    name: 'Claw Hammer',
-    available: '08',
-    icon: ICONS.handTools,
-    bgColor: '#E6F0FF',
-    tintColor: '#0056BE',
-  },
-  {
-    id: '3',
-    name: 'Tape Measure 8m',
-    available: '24',
-    icon: ICONS.measure,
-    bgColor: '#E6F0FF',
-    tintColor: '#0056BE',
-  },
-  {
-    id: '4',
-    name: 'Screwdriver Set',
-    available: '15',
-    icon: ICONS.handTools,
-    bgColor: '#E6F0FF',
-    tintColor: '#0056BE',
-  },
-  {
-    id: '5',
-    name: 'Impact Driver',
-    available: '00',
-    icon: ICONS.driver,
-    bgColor: '#FFEBEB',
-    tintColor: COLORS.error,
-  },
-];
 
 const ToolCategories = () => {
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
   const { getProfileRes, teamsListRes, isMainLoading, getInventoryCategoriesRes, teamMembersByIdRes, getToolsListRes, inventoryLocationsRes, membersOverallRes } = useSelector((state: any) => state.MainReducer);
 
-  const [selectedCategory, setSelectedCategory] = useState<any>({ id: '', name: 'All' });
+  const [selectedCategory, setSelectedCategory] = useState<any>(getInventoryCategoriesRes?.[0]);
   const [searchQuery, setSearchQuery] = useState('');
 
   const renderCategory = ({ item }: { item: any }) => (
@@ -144,7 +101,7 @@ const ToolCategories = () => {
             <Image source={ICONS.back} style={styles.headerIcon} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Inventory</Text>
-          {getProfileRes?.data?.is_admin ?
+          {!getProfileRes?.data?.is_admin ?
             <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={() => navigate('AddNewTool')}>
               <Image source={ICONS.plus} style={styles.headerIcon} />
             </TouchableOpacity>
@@ -171,7 +128,7 @@ const ToolCategories = () => {
         {/* Categories */}
         <View style={styles.categoriesWrapper}>
           <FlatList
-            data={[{ id: '', name: 'All' }, ...(getInventoryCategoriesRes || [])]}
+            data={(getInventoryCategoriesRes || [])}
             renderItem={renderCategory}
             keyExtractor={(item, index) => item?.id ? item.id.toString() : index.toString()}
             horizontal

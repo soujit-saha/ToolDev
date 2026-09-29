@@ -58,6 +58,8 @@ import {
   getInventoryListFailure,
   getInventoryLocationsSuccess,
   getInventoryLocationsFailure,
+  addInventoryLocationSuccess,
+  addInventoryLocationFailure,
   getCmsSuccess,
   getCmsFailure,
   respondToolStatusCheckSuccess,
@@ -677,10 +679,34 @@ export function* getInventoryLocationsSaga(
       params,
       header,
     );
-    yield put(getInventoryLocationsSuccess(response?.data?.data?.data));
+    yield put(getInventoryLocationsSuccess({
+      data: response?.data?.data?.data || response?.data?.data || response?.data || [],
+      page: params.page_no || params.page || 1,
+      last_page: response?.data?.data?.last_page || 1,
+    }));
   } catch (error: any) {
     yield put(getInventoryLocationsFailure(error));
     ToastAlert(error?.response?.data?.message || 'getInventoryLocations Failed');
+  }
+}
+
+export function* addInventoryLocationSaga(
+  action: PayloadAction<any>,
+): Generator<any, void, any> {
+  const item = yield select(getItems);
+  const header: ApiHeaders = {
+    Accept: 'application/json',
+    contenttype: 'multipart/form-data',
+    accesstoken: item.getTokenResponse,
+  };
+  try {
+    const response: ApiResponse = yield call(postApi, 'inventory/locations', action.payload, header);
+    yield put(addInventoryLocationSuccess(response?.data));
+    ToastAlert(response?.data?.message || 'Inventory location added');
+  } catch (error: any) {
+    console.log('ADD INVENTORY LOCATION ERROR:', error?.response?.data || error);
+    yield put(addInventoryLocationFailure(error));
+    ToastAlert(error?.response?.data?.message || 'addInventoryLocation Failed');
   }
 }
 
@@ -763,6 +789,7 @@ export function* watchMainSaga(): Generator<any, void, any> {
   yield takeLatest('Main/addInventoryToolRequest', addInventoryToolSaga);
   yield takeLatest('Main/getInventoryListRequest', getInventoryListSaga);
   yield takeLatest('Main/getInventoryLocationsRequest', getInventoryLocationsSaga);
+  yield takeLatest('Main/addInventoryLocationRequest', addInventoryLocationSaga);
 
   yield takeLatest('Main/getNotificationsRequest', getNotificationsSaga);
   yield takeLatest('Main/readNotificationRequest', readNotificationSaga);

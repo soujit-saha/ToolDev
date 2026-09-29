@@ -39,11 +39,20 @@ const Take = () => {
   const [selectedSource, setSelectedSource] = useState<any>(null);
   const [selectedTeamMember, setSelectedTeamMember] = useState<any>(null);
   const [memberPage, setMemberPage] = useState(1);
+  const [locationPage, setLocationPage] = useState(1);
   const [toolPage, setToolPage] = useState(1);
   const [sourceTab, setSourceTab] = useState<'Location' | 'Individuals'>('Location');
   const [searchQuery, setSearchQuery] = useState('');
 
   const openModal = (type: string) => {
+    if (type === 'Tool' && !selectedCategory?.id) {
+      ToastAlert('Please select Category');
+      return;
+    }
+    if (type === 'Tool' && !selectedSource?.id) {
+      ToastAlert('Please select Source');
+      return;
+    }
     setModalType(type);
     setSearchQuery('');
     if (type === 'Tool') {
@@ -131,6 +140,7 @@ const Take = () => {
       // team_member_id: selectedTeamMember.id,
       source: sourceTab == "Location" ? selectedSource.name : '',
       source_id: sourceTab == "Location" ? selectedSource.id : "",
+      taken_from: sourceTab == "Individuals" ? selectedSource?.id : "",
       category_id: selectedCategory.id,
       notes: "",
       tools: selectedTools.map(tool => ({
@@ -166,12 +176,12 @@ const Take = () => {
     );
   };
 
-  useEffect(() => {
-    // dispatch(getTeamsRequest({}));
-    dispatch(getToolsListRequest({ page_no: 1, per_page: 10 }));
-    dispatch(getMembersOverallRequest({ page_no: 1, per_page: 20 }));
-    dispatch(getInventoryLocationsRequest({ per_page: 20 }));
-  }, []);
+  // useEffect(() => {
+  // dispatch(getTeamsRequest({}));
+  // dispatch(getToolsListRequest({ page_no: 1, per_page: 10 }));
+  // dispatch(getMembersOverallRequest({ page_no: 1, per_page: 5 }));
+  // dispatch(getInventoryLocationsRequest({ page_no: 1, per_page: 5 }));
+  // }, []);            
 
   useEffect(() => {
     if (status === 'Main/takeToolSuccess') {
@@ -186,31 +196,51 @@ const Take = () => {
   }, [status]);
 
   useEffect(() => {
-    if (selectedCategory?.id) {
-      dispatch(getToolsListRequest({ page_no: 1, per_page: 10, category_id: selectedCategory.id }));
+    if (selectedCategory?.id || (selectedSource?.id && sourceTab === 'Location')) {
+      dispatch(getToolsListRequest({
+        page_no: 1,
+        per_page: 10,
+        category_id: selectedCategory?.id,
+        location_id: sourceTab === 'Location' ? selectedSource?.id : '',
+        taken_by: sourceTab === 'Individuals' ? selectedSource?.id : ''
+      }));
       setToolPage(1);
       setSelectedTools([]);
       setTempSelectedTools([]);
       setToolQuantities({ tool1: 1 });
     }
-  }, [selectedCategory?.id, dispatch]);
+  }, [selectedCategory?.id, selectedSource?.id, sourceTab, dispatch]);
 
   useEffect(() => {
     if (modalType === 'Team Member' || (modalType === 'Source' && sourceTab === 'Individuals')) {
       const delayDebounceFn = setTimeout(() => {
-        dispatch(getMembersOverallRequest({ page_no: 1, per_page: 20, search: searchQuery }));
+        dispatch(getMembersOverallRequest({ page_no: 1, per_page: 5, search: searchQuery }));
         setMemberPage(1);
+      }, 500);
+      return () => clearTimeout(delayDebounceFn);
+    }
+    if (modalType === 'Source' && sourceTab === 'Location') {
+      const delayDebounceFn = setTimeout(() => {
+        dispatch(getInventoryLocationsRequest({ page: 1, per_page: 20, search: searchQuery }));
+        setLocationPage(1);
       }, 500);
       return () => clearTimeout(delayDebounceFn);
     }
     if (modalType === 'Tool') {
       const delayDebounceFn = setTimeout(() => {
-        dispatch(getToolsListRequest({ page_no: 1, per_page: 10, search: searchQuery, category_id: selectedCategory?.id }));
+        dispatch(getToolsListRequest({
+          page_no: 1,
+          per_page: 10,
+          search: searchQuery,
+          category_id: selectedCategory?.id,
+          location_id: sourceTab === 'Location' ? selectedSource?.id : '',
+          taken_by: sourceTab === 'Individuals' ? selectedSource?.id : ''
+        }));
         setToolPage(1);
       }, 500);
       return () => clearTimeout(delayDebounceFn);
     }
-  }, [searchQuery, modalType, sourceTab, selectedCategory?.id, dispatch]);
+  }, [searchQuery, modalType, sourceTab, selectedCategory?.id, selectedSource?.id, dispatch]);
 
   const handleModalEndReached = () => {
     if ((modalType === 'Team Member' || (modalType === 'Source' && sourceTab === 'Individuals')) && !isMainLoading && !pagiLoading) {
@@ -218,14 +248,28 @@ const Take = () => {
       if (memberPage < lastPage) {
         const nextPage = memberPage + 1;
         setMemberPage(nextPage);
-        dispatch(getMembersOverallRequest({ page_no: nextPage, per_page: 20 }));
+        dispatch(getMembersOverallRequest({ page_no: nextPage, per_page: 5, search: searchQuery }));
+      }
+    } else if (modalType === 'Source' && sourceTab === 'Location' && !isMainLoading && !pagiLoading) {
+      const lastPage = inventoryLocationsRes?.last_page || 1;
+      if (locationPage < lastPage) {
+        const nextPage = locationPage + 1;
+        setLocationPage(nextPage);
+        dispatch(getInventoryLocationsRequest({ page: nextPage, per_page: 20, search: searchQuery }));
       }
     } else if (modalType === 'Tool' && !isMainLoading && !pagiLoading) {
       const lastPage = getToolsListRes?.last_page || 1;
       if (toolPage < lastPage) {
         const nextPage = toolPage + 1;
         setToolPage(nextPage);
-        dispatch(getToolsListRequest({ page_no: nextPage, per_page: 10, search: searchQuery, category_id: selectedCategory?.id }));
+        dispatch(getToolsListRequest({
+          page_no: nextPage,
+          per_page: 10,
+          search: searchQuery,
+          category_id: selectedCategory?.id,
+          location_id: sourceTab === 'Location' ? selectedSource?.id : '',
+          taken_by: sourceTab === 'Individuals' ? selectedSource?.id : ''
+        }));
       }
     }
   };
@@ -235,7 +279,7 @@ const Take = () => {
     switch (modalType) {
       case 'Tool': data = Array.isArray(getToolsListRes) ? getToolsListRes : getToolsListRes?.data || []; break;
       case 'Category': data = getInventoryCategoriesRes || []; break;
-      case 'Source': data = sourceTab === 'Location' ? (inventoryLocationsRes || []) : (Array.isArray(membersOverallRes) ? membersOverallRes : membersOverallRes?.data || []); break;
+      case 'Source': data = sourceTab === 'Location' ? (inventoryLocationsRes?.data || []) : (Array.isArray(membersOverallRes) ? membersOverallRes : membersOverallRes?.data || []); break;
       case 'Team Member': data = Array.isArray(membersOverallRes) ? membersOverallRes : membersOverallRes?.data || []; break;
       default: data = []; break;
     }
@@ -278,7 +322,7 @@ const Take = () => {
     }
   };
 
-  console.log("getToolsListRes", selectedTools)
+  console.log("getToolsListRes", inventoryLocationsRes?.data)
 
   return (
     <SafeAreaView style={styles.container}>
@@ -351,7 +395,9 @@ const Take = () => {
       >
         <View style={styles.container}>
           <StatusBar barStyle="dark-content" backgroundColor={COLORS.primary} />
-          <View style={[styles.header, { paddingTop: insets.top }]}>
+          <View style={[styles.header,
+            // { paddingTop: insets.top }
+          ]}>
             <View style={styles.headerContent}>
               <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={() => setModalVisible(false)}>
                 <Image source={ICONS.back} style={styles.headerIcon} />
@@ -390,10 +436,10 @@ const Take = () => {
               </View>
             }
             renderItem={renderModalItem}
-            onEndReached={modalType === 'Team Member' || (modalType === 'Source' && sourceTab === 'Individuals') || modalType === 'Tool' ? handleModalEndReached : undefined}
+            onEndReached={modalType === 'Team Member' || modalType === 'Source' || modalType === 'Tool' ? handleModalEndReached : undefined}
             onEndReachedThreshold={0.5}
             ListFooterComponent={
-              (modalType === 'Team Member' || (modalType === 'Source' && sourceTab === 'Individuals') || modalType === 'Tool') && pagiLoading ? (
+              (modalType === 'Team Member' || modalType === 'Source' || modalType === 'Tool') && pagiLoading ? (
                 <ActivityIndicator size="small" color={COLORS.primary} style={{ marginVertical: mvs(20) }} />
               ) : null
             }

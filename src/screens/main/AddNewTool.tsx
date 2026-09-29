@@ -9,6 +9,8 @@ import {
   TextInput,
   ScrollView,
   Platform,
+  FlatList,
+  Switch,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
@@ -16,7 +18,7 @@ import Modal from 'react-native-modal';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import ImagePickerModal from '../../component/ImagePickerModal';
 import { useDispatch, useSelector } from 'react-redux';
-import { getInventoryCategoriesRequest, addInventoryToolRequest } from '../../redux/reducer/MainReducer';
+import { getInventoryCategoriesRequest, addInventoryToolRequest, getInventoryLocationsRequest, addInventoryLocationRequest } from '../../redux/reducer/MainReducer';
 import { COLORS, FONTS, ICONS } from '../../utils/constants';
 import { ms, mvs, s, vs } from '../../utils/helper/metric';
 import { goBack } from '../../utils/helper/RootNavigation';
@@ -28,7 +30,7 @@ const AddNewTool = () => {
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
 
-  const { getInventoryCategoriesRes, status, isMainLoading } = useSelector((state: any) => state.MainReducer);
+  const { getInventoryCategoriesRes, inventoryLocationsRes, status, isMainLoading } = useSelector((state: any) => state.MainReducer);
 
   const [stock, setStock] = useState(1);
   const [isModalVisible, setModalVisible] = useState(false);
@@ -38,17 +40,30 @@ const AddNewTool = () => {
 
   const [toolName, setToolName] = useState('');
   const [serialNumber, setSerialNumber] = useState('');
-  const [assignedLocation, setAssignedLocation] = useState('');
+  const [selectedLocation, setSelectedLocation] = useState<any>(null);
+  const [isLocationModalVisible, setLocationModalVisible] = useState(false);
+  const [locationPage, setLocationPage] = useState(1);
+  const [categoryPage, setCategoryPage] = useState(1);
+  const [isAddLocationModalVisible, setAddLocationModalVisible] = useState(false);
+  const [newLocName, setNewLocName] = useState('');
+  const [newLocDesc, setNewLocDesc] = useState('');
+  const [newLocIsActive, setNewLocIsActive] = useState(true);
 
-  // React.useEffect(() => {
-  //   dispatch(getInventoryCategoriesRequest({}));
-  // }, [dispatch]);
 
-  const categories = Array.isArray(getInventoryCategoriesRes)
+  React.useEffect(() => {
+    dispatch(getInventoryLocationsRequest({ page: 1, per_page: 5 }));
+  }, [dispatch]);
+
+
+  const rawCategories = Array.isArray(getInventoryCategoriesRes)
     ? getInventoryCategoriesRes
     : Array.isArray(getInventoryCategoriesRes?.data)
       ? getInventoryCategoriesRes.data
       : [];
+
+  const categories = rawCategories.filter((item: any) => 
+    item?.name !== 'All' && item?.title !== 'All'
+  );
 
   const incrementStock = () => setStock(prev => prev + 1);
   const decrementStock = () => setStock(prev => (prev > 0 ? prev - 1 : 0));
@@ -121,18 +136,26 @@ const AddNewTool = () => {
     if (status === 'Main/addInventoryToolSuccess') {
       goBack();
     }
-  }, [status]);
+    if (status === 'Main/addInventoryLocationSuccess') {
+      setLocationPage(1);
+      dispatch(getInventoryLocationsRequest({ page: 1, per_page: 5 }));
+    }
+  }, [status, dispatch]);
 
   const handleSubmit = () => {
-    if (!toolName.trim() || !serialNumber.trim() || !assignedLocation.trim() || !selectedCategory) {
+    if (!toolName.trim() || !selectedLocation || !selectedCategory) {
       ToastAlert('Please fill all required fields');
       return;
     }
 
+    // !serialNumber.trim() ||
+
     const formData = new FormData();
     formData.append('name', toolName);
     formData.append('serial_number', serialNumber);
-    formData.append('assigned_location', assignedLocation);
+    if (selectedLocation?.id) {
+      formData.append('assigned_location', String(selectedLocation.id));
+    }
     if (selectedCategory?.id) {
       formData.append('category_id', String(selectedCategory.id));
     }
@@ -158,6 +181,23 @@ const AddNewTool = () => {
     // }
 
     dispatch(addInventoryToolRequest(formData));
+  };
+
+  const handleAddLocationSubmit = () => {
+    if (!newLocName.trim()) {
+      ToastAlert('Please enter location name');
+      return;
+    }
+    const formData = new FormData();
+    formData.append('name', newLocName);
+    formData.append('description', newLocDesc);
+    formData.append('is_active', newLocIsActive ? '1' : '0');
+
+    dispatch(addInventoryLocationRequest(formData));
+    setAddLocationModalVisible(false);
+    setNewLocName('');
+    setNewLocDesc('');
+    setNewLocIsActive(true);
   };
 
   console.log('100', toolPhoto);
@@ -215,6 +255,7 @@ const AddNewTool = () => {
         </TouchableOpacity>
 
         <View style={styles.formCard}>
+          {/* Category */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Category</Text>
             <TouchableOpacity style={styles.dropdown} onPress={() => setCategoryModalVisible(true)}>
@@ -259,16 +300,12 @@ const AddNewTool = () => {
           {/* Assigned Location */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Assigned Location</Text>
-            <View style={styles.inputWrapper}>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter a Location"
-                placeholderTextColor={COLORS.placeholderGray}
-                value={assignedLocation}
-                onChangeText={setAssignedLocation}
-              />
-
-            </View>
+            <TouchableOpacity style={styles.dropdown} onPress={() => setLocationModalVisible(true)}>
+              <Text style={styles.inputText}>
+                {selectedLocation ? (selectedLocation?.name || selectedLocation?.title) : 'Select Location'}
+              </Text>
+              <Image source={ICONS.deopDown} style={styles.dropdownIcon} />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -312,27 +349,136 @@ const AddNewTool = () => {
       >
         <View style={styles.categoryModalContent}>
           <Text style={styles.modalTitle}>Select Category</Text>
-          <ScrollView style={styles.categoryList}>
-            {categories.length > 0 ? (
-              categories.map((item: any, index: number) => (
-                <TouchableOpacity
-                  key={item?.id || item?.uuid || index}
-                  style={styles.categoryItem}
-                  onPress={() => {
-                    setSelectedCategory(item);
-                    setCategoryModalVisible(false);
-                  }}
-                >
-                  <Text style={styles.categoryItemText}>{item?.name || item?.title}</Text>
-                </TouchableOpacity>
-              ))
-            ) : (
+          <FlatList
+            data={categories}
+            showsVerticalScrollIndicator={false}
+            keyExtractor={(item, index) => (item?.id || item?.uuid || index).toString()}
+            style={styles.categoryList}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.categoryItem}
+                onPress={() => {
+                  setSelectedCategory(item);
+                  setCategoryModalVisible(false);
+                }}
+              >
+                <Text style={styles.categoryItemText}>{item?.name || item?.title}</Text>
+              </TouchableOpacity>
+            )}
+
+            ListEmptyComponent={() => (
               <Text style={{ textAlign: 'center', marginVertical: mvs(20) }}>No Categories Found</Text>
             )}
-          </ScrollView>
-          {/* <TouchableOpacity style={[styles.modalBtn, { marginTop: mvs(10) }]} onPress={() => setCategoryModalVisible(false)}>
-            <Text style={[styles.modalBtnText, { color: COLORS.error || 'red' }]}>Cancel</Text>
-          </TouchableOpacity> */}
+
+          />
+        </View>
+      </Modal>
+
+      {/* Location Picker Modal */}
+      <Modal
+        isVisible={isLocationModalVisible}
+        onBackdropPress={() => setLocationModalVisible(false)}
+        style={{ justifyContent: 'flex-end', margin: 0 }}
+      >
+        <View style={styles.categoryModalContent}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: mvs(15) }}>
+            <View style={{ width: s(60) }} />
+            <Text style={[styles.modalTitle, { marginBottom: 0 }]}>Select Location</Text>
+            <TouchableOpacity onPress={() => {
+              setLocationModalVisible(false);
+              setTimeout(() => setAddLocationModalVisible(true), 400);
+            }} style={{ width: s(60), alignItems: 'flex-end' }}>
+              <Text style={{ fontFamily: FONTS.bold18, fontSize: ms(12), color: COLORS.primary }}>Add New</Text>
+            </TouchableOpacity>
+          </View>
+          <FlatList
+            data={Array.isArray(inventoryLocationsRes) ? inventoryLocationsRes : inventoryLocationsRes?.data || []}
+            showsVerticalScrollIndicator={false}
+            keyExtractor={(item, index) => (item?.id || item?.uuid || index).toString()}
+            style={styles.categoryList}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.categoryItem}
+                onPress={() => {
+                  setSelectedLocation(item);
+                  setLocationModalVisible(false);
+                }}
+              >
+                <Text style={styles.categoryItemText}>{item?.name || item?.title}</Text>
+              </TouchableOpacity>
+            )}
+            onEndReached={() => {
+              if (!isMainLoading) {
+                const lastPage = inventoryLocationsRes?.last_page || 1;
+                if (locationPage < lastPage) {
+                  const nextPage = locationPage + 1;
+                  setLocationPage(nextPage);
+                  dispatch(getInventoryLocationsRequest({ page: nextPage, per_page: 5 }));
+                }
+              }
+            }}
+            onEndReachedThreshold={0.5}
+            ListEmptyComponent={() => (
+              <Text style={{ textAlign: 'center', marginVertical: mvs(20) }}>No Locations Found</Text>
+            )}
+            ListFooterComponent={() => (
+              isMainLoading && locationPage > 1 ? (
+                <ActivityIndicator size="small" color={COLORS.primary} style={{ marginVertical: mvs(10) }} />
+              ) : null
+            )}
+          />
+        </View>
+      </Modal>
+
+      {/* Add Location Modal */}
+      <Modal
+        isVisible={isAddLocationModalVisible}
+        onBackdropPress={() => setAddLocationModalVisible(false)}
+        style={{ justifyContent: 'flex-end', margin: 0 }}
+      >
+        <View style={styles.categoryModalContent}>
+          <Text style={styles.modalTitle}>Add New Location</Text>
+          
+          <KeyboardAwareScrollView showsVerticalScrollIndicator={false}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Name *</Text>
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter Name"
+                  placeholderTextColor={COLORS.placeholderGray}
+                  value={newLocName}
+                  onChangeText={setNewLocName}
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Description</Text>
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter Description"
+                  placeholderTextColor={COLORS.placeholderGray}
+                  value={newLocDesc}
+                  onChangeText={setNewLocDesc}
+                />
+              </View>
+            </View>
+
+            <View style={[styles.inputGroup, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: mvs(10) }]}>
+              <Text style={styles.label}>Is Active</Text>
+              <Switch
+                value={newLocIsActive}
+                onValueChange={setNewLocIsActive}
+                trackColor={{ false: '#767577', true: COLORS.primary }}
+              />
+            </View>
+
+            <TouchableOpacity style={[styles.submitBtn, { marginTop: mvs(30) }]} activeOpacity={0.8} onPress={handleAddLocationSubmit}>
+              <Text style={styles.submitBtnText}>Submit Location</Text>
+            </TouchableOpacity>
+          </KeyboardAwareScrollView>
         </View>
       </Modal>
 
@@ -572,7 +718,7 @@ const styles = StyleSheet.create({
     paddingTop: ms(20),
     borderTopLeftRadius: ms(20),
     borderTopRightRadius: ms(20),
-    maxHeight: '60%',
+    height: '80%',
   },
   modalTitle: {
     fontFamily: FONTS.bold18,

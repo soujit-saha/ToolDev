@@ -34,6 +34,7 @@ export interface MainState {
   inventoryLocationsRes?: any;
   getCmsRes?: any;
   respondToolStatusCheckRes?: any;
+  addInventoryLocationRes?: any;
 }
 
 const initialState: MainState = {
@@ -69,6 +70,7 @@ const initialState: MainState = {
   inventoryLocationsRes: [],
   getCmsRes: {},
   respondToolStatusCheckRes: {},
+  addInventoryLocationRes: {},
 };
 
 const MainSlice = createSlice({
@@ -457,12 +459,40 @@ const MainSlice = createSlice({
     },
     getInventoryLocationsSuccess(state, action: PayloadAction<any>) {
       state.isMainLoading = false;
-      state.inventoryLocationsRes = action.payload;
+      if (action.payload?.page === 1) {
+        state.inventoryLocationsRes = {
+          data: action.payload.data,
+          last_page: action.payload.last_page,
+        };
+      } else {
+        state.inventoryLocationsRes = {
+          ...state.inventoryLocationsRes,
+          data: [
+            ...(state.inventoryLocationsRes?.data || []),
+            ...(action.payload.data || []),
+          ],
+        };
+      }
       state.status = action.type;
     },
     getInventoryLocationsFailure(state, action: PayloadAction<any>) {
       state.isMainLoading = false;
       state.error = action.payload?.error || 'getInventoryLocations failed';
+      state.status = action.type;
+    },
+
+    addInventoryLocationRequest(state, action: PayloadAction<any>) {
+      state.isMainLoading = true;
+      state.status = action.type;
+    },
+    addInventoryLocationSuccess(state, action: PayloadAction<any>) {
+      state.isMainLoading = false;
+      state.addInventoryLocationRes = action.payload;
+      state.status = action.type;
+    },
+    addInventoryLocationFailure(state, action: PayloadAction<any>) {
+      state.isMainLoading = false;
+      state.error = action.payload?.error || 'addInventoryLocation failed';
       state.status = action.type;
     },
 
@@ -690,6 +720,9 @@ export const {
   getInventoryLocationsRequest,
   getInventoryLocationsSuccess,
   getInventoryLocationsFailure,
+  addInventoryLocationRequest,
+  addInventoryLocationSuccess,
+  addInventoryLocationFailure,
   getCmsRequest,
   getCmsSuccess,
   getCmsFailure,
